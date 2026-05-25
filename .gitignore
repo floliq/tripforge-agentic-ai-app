@@ -1,0 +1,18 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+/tasks
+TASKS.md
+TZ.md
+.env
+trips/
+chroma/
+checkpoints.sqlite
+.cursor/
