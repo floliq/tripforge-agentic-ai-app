@@ -18,7 +18,6 @@ class TripRequest(BaseModel):
     origin_city: str | None = None
 
     def is_complete(self) -> bool:
-        """Достаточно для geocode + weather + POI."""
         has_destination = bool(self.city)
         has_time = self.days is not None or (
             self.date_from is not None and self.date_to is not None
@@ -51,3 +50,11 @@ class WeatherDay(BaseModel):
     temperature: float
     description: str
     wind_speed: float
+
+
+class WeatherResult(BaseModel):
+    latitude: float
+    longitude: float
+    date_from: date
+    date_to: date
+    days_weather: list[WeatherDay]

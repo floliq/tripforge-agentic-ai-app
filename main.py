@@ -1,5 +1,9 @@
+from agent import build_agent
+
+
 def main():
-    print("Hello from pet-project-agentic-ai-app!")
+    agent = build_agent()
+    print("Agent has been started")
 
 
 if __name__ == "__main__":
