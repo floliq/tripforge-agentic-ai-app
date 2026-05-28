@@ -1,14 +1,16 @@
 import os
 import sqlite3
+from pathlib import Path
 from typing import Optional
 
 from deepagents import SubAgent, create_deep_agent
+from deepagents.backends import FilesystemBackend
 from dotenv import load_dotenv
 from langchain_ollama import ChatOllama
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-from prompts import WEATHER_ANALYST_SYSTEM_PROMPT, MAIN_SYSTEM_PROMPT
-from tools import geocode_city, fetch_weather
+from prompts import WEATHER_ANALYST_SYSTEM_PROMPT, build_main_system_prompt
+from tools import geocode_city, fetch_weather, search_poi, get_poi_details
 
 load_dotenv()
 
@@ -20,7 +22,12 @@ def build_model() -> ChatOllama:
     if not ollama_model:
         raise RuntimeError("OLLAMA_MODEL is not set in environment")
 
-    chat_model = ChatOllama(model=ollama_model, base_url=ollama_url)
+    # Keep model reasoning private: return only user-facing answers.
+    chat_model = ChatOllama(
+        model=ollama_model,
+        base_url=ollama_url,
+        reasoning=False,
+    )
 
     return chat_model
 
@@ -31,7 +38,11 @@ def build_checkpointer() -> SqliteSaver:
     return checkpointer
 
 
-def build_agent(checkpointer: Optional[SqliteSaver] = None):
+def build_agent(
+    trip_dir: Path,
+    checkpointer: Optional[SqliteSaver] = None,
+    wants_poi_context: str = "unknown",
+):
     if checkpointer is None:
         checkpointer = build_checkpointer()
     weather_analyst_agents: SubAgent = {
@@ -43,10 +54,14 @@ def build_agent(checkpointer: Optional[SqliteSaver] = None):
 
     agent = create_deep_agent(
         model=build_model(),
-        tools=[geocode_city, fetch_weather],
-        system_prompt=MAIN_SYSTEM_PROMPT,
+        tools=[geocode_city, fetch_weather, search_poi, get_poi_details],
+        system_prompt=build_main_system_prompt(
+            trip_dir=str(trip_dir),
+            wants_poi=wants_poi_context,
+        ),
         subagents=subagents,
         memory=["./memory/"],
+        backend=FilesystemBackend(root_dir=trip_dir, virtual_mode=True),
         checkpointer=checkpointer,
         interrupt_on={"write_file": True, "edit_file": True},
     )

@@ -9,6 +9,7 @@ load_dotenv()
 @tool
 def geocode_city(city: str) -> GeocodeResult:
     """Return latitude and longitude for a city using OpenStreetMap Nominatim."""
+    print(f" starting geocode city: {city}")
     response = httpx.get(
         f"https://nominatim.openstreetmap.org/search?q={city}&format=json&addressdetails=1",
         headers={"User-Agent": os.getenv("NOMINATIM_USER_AGENT")},
@@ -23,9 +24,10 @@ def geocode_city(city: str) -> GeocodeResult:
     if not country:
         parts = data[0]["display_name"].split(", ")
         country = parts[-1]
+    print(f" geocode city: {city}, country: {country}, latitude: {result['lat']}, longitude: {result['lon']}")
     return GeocodeResult(
         city=city, latitude=result["lat"], longitude=result["lon"], country=country
     )
 
 
-#print(geocode_city("Rome"))
+#print(geocode_city("Гомель"))

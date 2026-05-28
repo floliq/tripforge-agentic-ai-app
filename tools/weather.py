@@ -51,7 +51,7 @@ def _fetch_open_meteo(
 ) -> dict:
     if date_from > date_to:
         raise ValueError("date_from must be on or before date_to")
-
+    print(f"Starting get weather lat={lat} lon={lon} date_from = {date_from.isoformat()} date_to = {date_to.isoformat()}")
     base_url = "https://api.open-meteo.com/v1/forecast"
 
     params = {
@@ -72,6 +72,7 @@ def _fetch_open_meteo(
 
 
 def _build_weather_days(data: dict, date_from: date, date_to: date) -> list[WeatherDay]:
+    print(f'Start building weather days date_from={date_from.isoformat()} and date_to={date_to.isoformat()}')
     daily = data.get("daily")
     if not daily or not daily.get("time"):
         raise RuntimeError(
@@ -93,7 +94,8 @@ def _build_weather_days(data: dict, date_from: date, date_to: date) -> list[Weat
         days.append(
             WeatherDay(
                 date=day,
-                temperature=temperature,
+                temperature_day=t_max,
+                temperature_night=t_min,
                 description=_weather_description(code),
                 wind_speed=wind,
             )
@@ -104,6 +106,7 @@ def _build_weather_days(data: dict, date_from: date, date_to: date) -> list[Weat
             f"No forecast days between {date_from} and {date_to}. "
             "Check that dates are within the API range (forecast ~16 days ahead)."
         )
+    print("finished building weather days")
     return days
 
 
@@ -124,6 +127,18 @@ def fetch_weather(
     """
     data = _fetch_open_meteo(lat, lon, date_from, date_to)
     days = _build_weather_days(data, date_from, date_to)
+    daily_lines = "\n".join(
+        f"{d.date.isoformat()}: day {d.temperature_day:.1f}°C, night {d.temperature_night:.1f}°C, {d.description}, wind {d.wind_speed:.1f} m/s"
+        for d in days
+    )
+    print(
+        f"\n"
+        f"latitude={lat}\n"
+        f"longitude={lon}\n"
+        f"date_from={date_from.isoformat()}\n"
+        f"date_to={date_to.isoformat()}\n"
+        f"days_weather:\n{daily_lines}\n"
+    )
     return WeatherResult(
         latitude=lat,
         longitude=lon,
@@ -133,4 +148,4 @@ def fetch_weather(
     )
 
 
-# print(fetch_weather(41.89, 12.49, date(2026, 6, 1), date(2026, 6, 5)))
+#print(fetch_weather(41.89, 12.49, date(2026, 6, 1), date(2026, 6, 5)))

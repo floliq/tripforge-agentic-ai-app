@@ -16,6 +16,7 @@ class TripRequest(BaseModel):
     interests: list[str] = []
     pace: Literal["relaxed", "moderate", "active"] = "moderate"
     origin_city: str | None = None
+    wants_poi: bool | None = None
 
     def is_complete(self) -> bool:
         has_destination = bool(self.city)
@@ -23,6 +24,9 @@ class TripRequest(BaseModel):
             self.date_from is not None and self.date_to is not None
         )
         return has_destination and has_time
+
+    def needs_poi_clarification(self) -> bool:
+        return self.is_complete() and self.wants_poi is None
 
 
 class DayPlan(BaseModel):
@@ -47,7 +51,8 @@ class GeocodeResult(BaseModel):
 
 class WeatherDay(BaseModel):
     date: date
-    temperature: float
+    temperature_day: float
+    temperature_night: float
     description: str
     wind_speed: float
 
@@ -58,3 +63,22 @@ class WeatherResult(BaseModel):
     date_from: date
     date_to: date
     days_weather: list[WeatherDay]
+
+
+class PoiItem(BaseModel):
+    xid: str
+    name: str
+    dist: float
+    kinds: list[str]
+
+
+class PoiResults(BaseModel):
+    items: list[PoiItem]
+
+
+class PoiDetails(BaseModel):
+    name: str
+    description: str | None = None
+    wikipedia_url: str | None = None
+    address: str | None = None
+    coordinates: list[float]
