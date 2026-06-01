@@ -26,6 +26,7 @@ class TravelApiClient:
         )
         response.raise_for_status()
         data = response.json()
+        #print(data)
         if not data:
             raise ValueError(f"Destination not found: {destination}")
 
@@ -70,6 +71,7 @@ class TravelApiClient:
                     longitude=item.get("point", {}).get("lon"),
                 )
             )
+        #print(places)
         return places
 
     def weather_outline(
@@ -112,6 +114,7 @@ class TravelApiClient:
                     ),
                 }
             )
+        #print(forecast)
         return WeatherOutline(destination=coordinates.name, forecast=forecast)
 
 

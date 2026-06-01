@@ -53,7 +53,7 @@ def build_tripforge_agent(checkpointer: MemorySaver | None = None):
         },
         {
             "name": "research-agent",
-            "description": "Fetches travel facts from free APIs and indexes them in ChromaDB.",
+            "description": "Fetches travel facts(geocode, places, weather) from free APIs and indexes them in ChromaDB.",
             "system_prompt": _with_today(RESEARCH_PROMPT),
             "tools": research_tools,
             "interrupt_on": {

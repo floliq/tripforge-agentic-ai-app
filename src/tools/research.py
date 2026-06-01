@@ -73,39 +73,15 @@ def fetch_weather_outline(
     return weather.model_dump_json(indent=2)
 
 
-def _as_dict_list(value: list[dict[str, Any]] | str) -> list[dict[str, Any]]:
-    if isinstance(value, str):
-        return json.loads(value)
-    return value
-
-
 @tool
 def index_travel_facts(
     session_id: str,
-    facts: list[dict[str, Any]] | str,
+    facts: list[TravelFact],
 ) -> str:
     """Index travel facts in ChromaDB for this trip session."""
-    payload = _as_dict_list(facts)
-    facts = [TravelFact.model_validate(item) for item in payload]
-    count = TravelFactStore(session_id=session_id).add_facts(facts)
+    parsed_facts = [
+        fact if isinstance(fact, TravelFact) else TravelFact.model_validate(fact)
+        for fact in facts
+    ]
+    count = TravelFactStore(session_id=session_id).add_facts(parsed_facts)
     return json.dumps({"indexed": count, "session_id": session_id}, indent=2)
-
-
-def combine_research_facts(places_json: str, weather_json: str) -> list[TravelFact]:
-    places_payload = json.loads(places_json)
-    places = [item for item in places_payload]
-    place_facts = facts_from_places([_place_from_dict(item) for item in places])
-    weather = facts_from_weather(_weather_from_json(weather_json))
-    return place_facts + weather
-
-
-def _place_from_dict(item: dict[str, Any]):
-    from src.models import Place
-
-    return Place.model_validate(item)
-
-
-def _weather_from_json(payload: str):
-    from src.models import WeatherOutline
-
-    return WeatherOutline.model_validate_json(payload)
