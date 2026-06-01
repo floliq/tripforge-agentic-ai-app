@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from typing import Literal
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
@@ -20,7 +21,10 @@ def extract_trip_draft(user_request: str) -> str:
             content=(
                 "Extract trip planning parameters into JSON matching this schema: "
                 "destination, start_date, end_date, duration_days, budget, budget_currency, "
-                "travelers, travel_style, interests, constraints, raw_request. "
+                "travelers, travel_style, needs_accommodation, accommodation_style, "
+                "interests, constraints, raw_request. "
+                "needs_accommodation is true when the traveler needs overnight lodging. "
+                "accommodation_style is budget, comfort, or luxury when lodging is needed. "
                 "Use null for unknown scalar fields and [] for unknown lists."
             )
         ),
@@ -63,10 +67,13 @@ def _heuristic_extract(user_request: str) -> TripDraft:
     ]
     duration = _extract_duration(text)
     budget = _extract_budget(text)
+    needs_accommodation = _extract_needs_accommodation(text)
     return TripDraft(
         destination=destination,
         duration_days=duration,
         budget=budget,
+        needs_accommodation=needs_accommodation,
+        accommodation_style=_extract_accommodation_style(text),
         interests=sorted(set(interests)),
         raw_request=user_request,
     )
@@ -99,6 +106,50 @@ def _extract_budget(text: str) -> float | None:
         r"(\d+(?:[.,]\d+)?)\s*(?:eur|euro|usd|\$|€|руб|rub)", text.lower()
     )
     return float(match.group(1).replace(",", ".")) if match else None
+
+
+def _extract_needs_accommodation(text: str) -> bool | None:
+    lowered = text.lower()
+    if any(
+        value in lowered
+        for value in (
+            "без ночлега",
+            "без гостиницы",
+            "без отеля",
+            "no accommodation",
+            "no hotel",
+            "without lodging",
+        )
+    ):
+        return False
+    if any(
+        value in lowered
+        for value in (
+            "ночлег",
+            "гостиниц",
+            "отель",
+            "хостел",
+            "hotel",
+            "hostel",
+            "lodging",
+            "accommodation",
+        )
+    ):
+        return True
+    return None
+
+
+def _extract_accommodation_style(
+    text: str,
+) -> Literal["budget", "comfort", "luxury"] | None:
+    lowered = text.lower()
+    if any(value in lowered for value in ("люкс", "luxury", "premium")):
+        return "luxury"
+    if any(value in lowered for value in ("комфорт", "comfort")):
+        return "comfort"
+    if any(value in lowered for value in ("бюджет", "дешев", "budget", "cheap", "hostel")):
+        return "budget"
+    return None
 
 
 def parse_draft_json(payload: str) -> TripDraft:

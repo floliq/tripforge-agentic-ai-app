@@ -1,11 +1,14 @@
 import json
 from datetime import date
-from typing import Any
+from typing import Literal
 
 from langchain_core.tools import tool
 
-from src.clients.travel_api import TravelApiClient, facts_from_places, facts_from_weather
-from src.models import Coordinates, TravelFact
+from src.clients.travel_api import (
+    TravelApiClient,
+    facts_from_hotels,
+)
+from src.models import Coordinates, Place, TravelFact
 from src.rag.store import TravelFactStore
 
 
@@ -74,6 +77,24 @@ def fetch_weather_outline(
 
 
 @tool
+def fetch_hotels(
+    destination_name: str,
+    latitude: float,
+    longitude: float,
+    country: str | None = None,
+    accommodation_style: Literal["budget", "comfort", "luxury"] | None = None,
+) -> str:
+    """Fetch accommodation options from OpenTripMap for the given coordinates."""
+    coordinates = _coordinates(destination_name, latitude, longitude, country)
+    hotels = TravelApiClient().hotels(coordinates, accommodation_style)
+    return json.dumps(
+        [hotel.model_dump(mode="json") for hotel in hotels],
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
+@tool
 def index_travel_facts(
     session_id: str,
     facts: list[TravelFact],
@@ -85,3 +106,9 @@ def index_travel_facts(
     ]
     count = TravelFactStore(session_id=session_id).add_facts(parsed_facts)
     return json.dumps({"indexed": count, "session_id": session_id}, indent=2)
+
+
+def accommodation_facts_from_json(hotels_json: str) -> list[TravelFact]:
+    payload = json.loads(hotels_json)
+    hotels = [Place.model_validate(item) for item in payload]
+    return facts_from_hotels(hotels)

@@ -4,6 +4,7 @@ from typing import Any
 
 from langgraph.types import Command
 
+from src.config import Settings
 from src.llm import build_langfuse_handler, flush_langfuse
 from src.agents.factory import build_tripforge_agent
 from src.storage.artifacts import create_session_id
@@ -52,8 +53,7 @@ def run_cli() -> int:
             result = agent.invoke(payload, config=config, version="v2")
             interrupts = _get_interrupts(result)
             if not interrupts:
-                _print_final(result)
-                return 0
+                return _print_final(result, session_id)
 
             decisions = _collect_human_decisions(interrupts[0].value)
             payload = Command(resume={"decisions": decisions})
@@ -62,9 +62,63 @@ def run_cli() -> int:
 
 
 
-def _print_final(result: Any) -> None:
-    # TODO Сделать фидбек финальный
-    print("Готово")
+def _print_final(result: Any, session_id: str) -> int:
+    content = _last_message_content(result)
+    if content:
+        print(content)
+
+    artifacts = _artifact_paths(session_id)
+    if all(path.exists() for path in artifacts.values()):
+        print("\nГотово. Артефакты сохранены:")
+        for name, path in artifacts.items():
+            print(f"- {name}: {path}")
+        return 0
+
+    print(
+        "\nПлан не был сохранён: агент завершился без save_artifacts. "
+        "Проверьте ответ выше или Langfuse trace."
+    )
+    return 1
+
+
+def _artifact_paths(session_id: str):
+    base = Settings().artifacts_dir / session_id
+    return {
+        "meta": base / "meta.json",
+        "itinerary": base / "itinerary.md",
+        "budget": base / "budget.json",
+    }
+
+
+def _last_message_content(result: Any) -> str | None:
+    messages = []
+    if isinstance(result, dict):
+        messages = result.get("messages") or []
+    else:
+        messages = getattr(result, "messages", []) or []
+
+    for message in reversed(messages):
+        content = getattr(message, "content", None)
+        if content is None and isinstance(message, dict):
+            content = message.get("content")
+        text = _normalize_message_content(content)
+        if text:
+            return text
+    return None
+
+
+def _normalize_message_content(content: Any) -> str:
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict) and isinstance(item.get("text"), str):
+                parts.append(item["text"])
+        return "\n".join(parts).strip()
+    return ""
 
 
 def _get_interrupts(result: Any) -> list[Any]:

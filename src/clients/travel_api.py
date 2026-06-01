@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from typing import Any
+from typing import Any, Literal
 
 import requests
 
@@ -42,33 +42,83 @@ class TravelApiClient:
     def places(
         self, coordinates: Coordinates, interests: list[str] | None = None
     ) -> list[Place]:
+        return self._places_radius(coordinates, limit=self.settings.max_places)
+
+    def hotels(
+        self,
+        coordinates: Coordinates,
+        accommodation_style: Literal["budget", "comfort", "luxury"] | None = None,
+    ) -> list[Place]:
+        places = self._places_radius(
+            coordinates,
+            kinds="accomodations",
+            limit=self.settings.max_hotels,
+        )
+        hotels: list[Place] = []
+        for place in places:
+            tier = _classify_accommodation(place.metadata.get("kinds", ""))
+            if accommodation_style and tier != accommodation_style:
+                continue
+            hotels.append(
+                place.model_copy(
+                    update={
+                        "category": f"accommodation_{tier}",
+                        "summary": (
+                            f"{place.name} is a {tier} accommodation option near "
+                            f"{coordinates.name}. Tags: {place.metadata.get('kinds', '')}."
+                        ),
+                        "metadata": {
+                            **place.metadata,
+                            "accommodation_style": tier,
+                        },
+                    }
+                )
+            )
+        return hotels
+
+    def _places_radius(
+        self,
+        coordinates: Coordinates,
+        *,
+        kinds: str | None = None,
+        limit: int,
+    ) -> list[Place]:
         if not self.settings.opentripmap_api_key:
             raise Exception("OpenTripMap API key not set")
 
+        params: dict[str, Any] = {
+            "radius": 8000,
+            "lon": coordinates.longitude,
+            "lat": coordinates.latitude,
+            "limit": limit,
+            "format": "json",
+            "apikey": self.settings.opentripmap_api_key,
+        }
+        if kinds:
+            params["kinds"] = kinds
+
         response = self.session.get(
             "https://api.opentripmap.com/0.1/en/places/radius",
-            params={
-                "radius": 8000,
-                "lon": coordinates.longitude,
-                "lat": coordinates.latitude,
-                "limit": self.settings.max_places,
-                "format": "json",
-                "apikey": self.settings.opentripmap_api_key,
-            },
+            params=params,
             timeout=self.settings.request_timeout_seconds,
         )
         response.raise_for_status()
+
         places: list[Place] = []
         for item in response.json():
             name = item.get("name") or "Unnamed interesting place"
-            kinds = item.get("kinds", "attraction")
+            item_kinds = item.get("kinds", kinds or "attraction")
             places.append(
                 Place(
                     name=name,
-                    category=kinds.split(",")[0],
-                    summary=f"{name} near {coordinates.name}. Tags: {kinds}.",
+                    category=item_kinds.split(",")[0],
+                    summary=f"{name} near {coordinates.name}. Tags: {item_kinds}.",
                     latitude=item.get("point", {}).get("lat"),
                     longitude=item.get("point", {}).get("lon"),
+                    metadata={
+                        "xid": item.get("xid"),
+                        "kinds": item_kinds,
+                    },
                 )
             )
         #print(places)
@@ -128,9 +178,27 @@ def facts_from_places(places: list[Place]) -> list[TravelFact]:
             metadata={
                 "latitude": place.latitude,
                 "longitude": place.longitude,
+                **place.metadata,
             },
         )
         for place in places
+    ]
+
+
+def facts_from_hotels(hotels: list[Place]) -> list[TravelFact]:
+    return [
+        TravelFact(
+            source="opentripmap",
+            title=hotel.name,
+            summary=hotel.summary,
+            category=hotel.category,
+            metadata={
+                "latitude": hotel.latitude,
+                "longitude": hotel.longitude,
+                **hotel.metadata,
+            },
+        )
+        for hotel in hotels
     ]
 
 
@@ -155,3 +223,12 @@ def _safe_list_get(items: list[Any] | None, idx: int) -> Any:
     if not items or idx >= len(items):
         return None
     return items[idx]
+
+
+def _classify_accommodation(kinds: str) -> Literal["budget", "comfort", "luxury"]:
+    kind_set = {kind.strip() for kind in kinds.split(",") if kind.strip()}
+    if kind_set & {"hostels", "guest_houses", "motels"}:
+        return "budget"
+    if kind_set & {"resorts", "villas"}:
+        return "luxury"
+    return "comfort"

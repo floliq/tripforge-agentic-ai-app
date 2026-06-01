@@ -13,6 +13,7 @@ from src.llm import build_chat_model
 from src.tools.clarify import extract_trip_draft, ask_user
 from src.tools.research import (
     fetch_geocode,
+    fetch_hotels,
     fetch_places,
     fetch_weather_outline,
     index_travel_facts,
@@ -39,6 +40,7 @@ def build_tripforge_agent(checkpointer: MemorySaver | None = None):
         fetch_geocode,
         fetch_places,
         fetch_weather_outline,
+        fetch_hotels,
         index_travel_facts,
     ]
     planner_tools = [search_travel_facts, save_artifacts]
@@ -62,6 +64,7 @@ def build_tripforge_agent(checkpointer: MemorySaver | None = None):
                 "fetch_weather_outline": {
                     "allowed_decisions": ["approve", "edit", "reject"]
                 },
+                "fetch_hotels": {"allowed_decisions": ["approve", "edit", "reject"]},
             },
         },
         {
@@ -83,6 +86,7 @@ def build_tripforge_agent(checkpointer: MemorySaver | None = None):
             fetch_geocode,
             fetch_places,
             fetch_weather_outline,
+            fetch_hotels,
             index_travel_facts,
             search_travel_facts,
             save_artifacts,
@@ -96,6 +100,7 @@ def build_tripforge_agent(checkpointer: MemorySaver | None = None):
             "fetch_weather_outline": {
                 "allowed_decisions": ["approve", "edit", "reject"]
             },
+            "fetch_hotels": {"allowed_decisions": ["approve", "edit", "reject"]},
             "save_artifacts": {"allowed_decisions": ["approve", "edit", "reject"]},
         },
         checkpointer=checkpointer,

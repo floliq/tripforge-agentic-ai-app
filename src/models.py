@@ -19,6 +19,17 @@ class TripDraft(BaseModel):
         default=None,
         description="Only budget, comfort, or premium. Put themes like history into interests.",
     )
+    needs_accommodation: bool | None = Field(
+        default=None,
+        description="Whether the traveler needs overnight accommodation for this trip.",
+    )
+    accommodation_style: Literal["budget", "comfort", "luxury"] | None = Field(
+        default=None,
+        description=(
+            "Preferred accommodation tier when needs_accommodation is true: "
+            "budget, comfort, or luxury."
+        ),
+    )
     interests: list[str] = Field(default_factory=list)
     constraints: list[str] = Field(
         default_factory=list,
@@ -27,8 +38,17 @@ class TripDraft(BaseModel):
     raw_request: str | None = None
 
     def missing_required_fields(self) -> list[str]:
-        required = ["destination", "duration_days", "travelers", "interests"]
-        return [field for field in required if not getattr(self, field)]
+        required = [
+            "destination",
+            "duration_days",
+            "travelers",
+            "interests",
+            "needs_accommodation",
+        ]
+        missing = [field for field in required if getattr(self, field) in (None, [], "")]
+        if self.needs_accommodation and not self.accommodation_style:
+            missing.append("accommodation_style")
+        return missing
 
 
 class Coordinates(BaseModel):
@@ -52,6 +72,7 @@ class Place(BaseModel):
     summary: str
     latitude: float | None = None
     longitude: float | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class WeatherOutline(BaseModel):
@@ -72,6 +93,8 @@ class SaveArtifactsInput(BaseModel):
         description=(
             "TripDraft only. destination must be a plain string; travel_style must be "
             "budget, comfort, premium, or null; constraints must be a list of strings. "
+            "needs_accommodation must be a boolean and accommodation_style must be "
+            "budget, comfort, luxury, or null. "
             "Do not include logistics, key_attractions, weather_summary, coordinates, "
             "or budget breakdown objects here."
         )

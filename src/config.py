@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     opentripmap_api_key: str | None = os.getenv("TRIPFORGE_OPENTRIPMAP_API_KEY", None)
     request_timeout_seconds: int = Field(default=60, ge=1, le=120)
     max_places: int = Field(default=10, ge=1, le=50)
+    max_hotels: int = Field(default=8, ge=1, le=30)
     langfuse_base_url: str = os.getenv(
         "TRIPFORGE_LANGFUSE_BASE_URL", "https://cloud.langfuse.com"
     )
