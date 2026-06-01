@@ -1,0 +1,16 @@
+[project]
+name = "tripforgepet"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "chromadb>=1.5.9",
+    "deepagents>=0.6.6",
+    "langchain-ollama>=1.1.0",
+    "langfuse>=4.7.1",
+    "langgraph>=1.2.2",
+    "openai>=2.38.0",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.1",
+    "requests>=2.34.2",
+    "ruff>=0.15.15",
+]

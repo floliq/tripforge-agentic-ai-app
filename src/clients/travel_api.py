@@ -1,0 +1,154 @@
+from datetime import date, timedelta
+from typing import Any
+
+import requests
+
+from src.config import Settings
+from src.models import Coordinates, Place, WeatherOutline, TravelFact
+
+
+class TravelApiClient:
+    def __init__(self, settings: Settings | None = None) -> None:
+        self.settings = settings or Settings()
+        self.session = requests.Session()
+        self.session.headers.update({"User-Agent": "TripForge/0.1 educational CLI"})
+
+    def geocode(self, destination: str) -> Coordinates:
+        response = self.session.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={
+                "q": destination,
+                "format": "json",
+                "limit": 1,
+                "addressdetails": 1,
+            },
+            timeout=self.settings.request_timeout_seconds,
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not data:
+            raise ValueError(f"Destination not found: {destination}")
+
+        first = data[0]
+        address = first.get("address", {})
+        return Coordinates(
+            name=first.get("display_name", destination),
+            latitude=float(first["lat"]),
+            longitude=float(first["lon"]),
+            country=address.get("country"),
+        )
+
+    def places(
+        self, coordinates: Coordinates, interests: list[str] | None = None
+    ) -> list[Place]:
+        if not self.settings.opentripmap_api_key:
+            raise Exception("OpenTripMap API key not set")
+
+        response = self.session.get(
+            "https://api.opentripmap.com/0.1/en/places/radius",
+            params={
+                "radius": 8000,
+                "lon": coordinates.longitude,
+                "lat": coordinates.latitude,
+                "limit": self.settings.max_places,
+                "format": "json",
+                "apikey": self.settings.opentripmap_api_key,
+            },
+            timeout=self.settings.request_timeout_seconds,
+        )
+        response.raise_for_status()
+        places: list[Place] = []
+        for item in response.json():
+            name = item.get("name") or "Unnamed interesting place"
+            kinds = item.get("kinds", "attraction")
+            places.append(
+                Place(
+                    name=name,
+                    category=kinds.split(",")[0],
+                    summary=f"{name} near {coordinates.name}. Tags: {kinds}.",
+                    latitude=item.get("point", {}).get("lat"),
+                    longitude=item.get("point", {}).get("lon"),
+                )
+            )
+        return places
+
+    def weather_outline(
+        self,
+        coordinates: Coordinates,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> WeatherOutline:
+        params: dict[str, Any] = {
+            "latitude": coordinates.latitude,
+            "longitude": coordinates.longitude,
+            "daily": "temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+            "timezone": "auto",
+        }
+        if start_date and end_date:
+            params["start_date"] = start_date.isoformat()
+            params["end_date"] = end_date.isoformat()
+        else:
+            today = date.today()
+            params["start_date"] = today.isoformat()
+            params["end_date"] = (today + timedelta(days=6)).isoformat()
+
+        response = self.session.get(
+            "https://api.open-meteo.com/v1/forecast",
+            params=params,
+            timeout=self.settings.request_timeout_seconds,
+        )
+        response.raise_for_status()
+        daily = response.json().get("daily", {})
+        forecast = []
+        for idx, day in enumerate(daily.get("time", [])):
+            # TODO
+            forecast.append(
+                {
+                    "date": day,
+                    "temp_min_c": _safe_list_get(daily.get("temperature_2m_min"), idx),
+                    "temp_max_c": _safe_list_get(daily.get("temperature_2m_max"), idx),
+                    "precipitation_probability": _safe_list_get(
+                        daily.get("precipitation_probability_max"), idx
+                    ),
+                }
+            )
+        return WeatherOutline(destination=coordinates.name, forecast=forecast)
+
+
+def facts_from_places(places: list[Place]) -> list[TravelFact]:
+    return [
+        TravelFact(
+            source="opentripmap",
+            title=place.name,
+            summary=place.summary,
+            category=place.category,
+            metadata={
+                "latitude": place.latitude,
+                "longitude": place.longitude,
+            },
+        )
+        for place in places
+    ]
+
+
+def facts_from_weather(weather: WeatherOutline) -> list[TravelFact]:
+    return [
+        TravelFact(
+            source="open-meteo",
+            title=f"Weather on {item['date']}",
+            summary=(
+                f"Forecast for {weather.destination}: {item.get('temp_min_c')}.."
+                f"{item.get('temp_max_c')} C, precipitation probability "
+                f"{item.get('precipitation_probability')}%."
+            ),
+            category="weather",
+            metadata=item,
+        )
+        for item in weather.forecast
+    ]
+
+
+def _safe_list_get(items: list[Any] | None, idx: int) -> Any:
+    if not items or idx >= len(items):
+        return None
+    return items[idx]
