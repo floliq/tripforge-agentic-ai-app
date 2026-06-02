@@ -30,6 +30,10 @@ class TripDraft(BaseModel):
             "budget, comfort, or luxury."
         ),
     )
+    city_transport_mode: Literal["walking", "bicycle", "car"] | None = Field(
+        default=None,
+        description="How the traveler plans to move around the city.",
+    )
     interests: list[str] = Field(default_factory=list)
     constraints: list[str] = Field(
         default_factory=list,
@@ -44,6 +48,7 @@ class TripDraft(BaseModel):
             "travelers",
             "interests",
             "needs_accommodation",
+            "city_transport_mode",
         ]
         missing = [field for field in required if getattr(self, field) in (None, [], "")]
         if self.needs_accommodation and not self.accommodation_style:
@@ -75,6 +80,16 @@ class Place(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class RouteLeg(BaseModel):
+    origin: str
+    destination: str
+    mode: Literal["walking", "bicycle", "car"]
+    distance_m: float | None = Field(default=None, ge=0)
+    duration_s: float | None = Field(default=None, ge=0)
+    summary: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class WeatherOutline(BaseModel):
     destination: str
     forecast: list[dict[str, Any]]
@@ -94,7 +109,8 @@ class SaveArtifactsInput(BaseModel):
             "TripDraft only. destination must be a plain string; travel_style must be "
             "budget, comfort, premium, or null; constraints must be a list of strings. "
             "needs_accommodation must be a boolean and accommodation_style must be "
-            "budget, comfort, luxury, or null. "
+            "budget, comfort, luxury, or null. city_transport_mode must be walking, "
+            "bicycle, or car. "
             "Do not include logistics, key_attractions, weather_summary, coordinates, "
             "or budget breakdown objects here."
         )

@@ -22,9 +22,11 @@ def extract_trip_draft(user_request: str) -> str:
                 "Extract trip planning parameters into JSON matching this schema: "
                 "destination, start_date, end_date, duration_days, budget, budget_currency, "
                 "travelers, travel_style, needs_accommodation, accommodation_style, "
-                "interests, constraints, raw_request. "
+                "city_transport_mode, interests, constraints, raw_request. "
                 "needs_accommodation is true when the traveler needs overnight lodging. "
                 "accommodation_style is budget, comfort, or luxury when lodging is needed. "
+                "city_transport_mode is walking, bicycle, or car when the traveler says "
+                "how they will move around the city. "
                 "Use null for unknown scalar fields and [] for unknown lists."
             )
         ),
@@ -74,6 +76,7 @@ def _heuristic_extract(user_request: str) -> TripDraft:
         budget=budget,
         needs_accommodation=needs_accommodation,
         accommodation_style=_extract_accommodation_style(text),
+        city_transport_mode=_extract_city_transport_mode(text),
         interests=sorted(set(interests)),
         raw_request=user_request,
     )
@@ -149,6 +152,50 @@ def _extract_accommodation_style(
         return "comfort"
     if any(value in lowered for value in ("бюджет", "дешев", "budget", "cheap", "hostel")):
         return "budget"
+    return None
+
+
+def _extract_city_transport_mode(
+    text: str,
+) -> Literal["walking", "bicycle", "car"] | None:
+    lowered = text.lower()
+    if any(
+        value in lowered
+        for value in (
+            "пешком",
+            "ходить",
+            "гулять",
+            "walk",
+            "walking",
+            "on foot",
+        )
+    ):
+        return "walking"
+    if any(
+        value in lowered
+        for value in (
+            "велосипед",
+            "велике",
+            "байк",
+            "bike",
+            "bicycle",
+            "cycling",
+        )
+    ):
+        return "bicycle"
+    if any(
+        value in lowered
+        for value in (
+            "машин",
+            "авто",
+            "такси",
+            "car",
+            "drive",
+            "driving",
+            "taxi",
+        )
+    ):
+        return "car"
     return None
 
 

@@ -4,7 +4,7 @@ from typing import Any, Literal
 import requests
 
 from src.config import Settings
-from src.models import Coordinates, Place, WeatherOutline, TravelFact
+from src.models import Coordinates, Place, RouteLeg, WeatherOutline, TravelFact
 
 
 class TravelApiClient:
@@ -75,6 +75,66 @@ class TravelApiClient:
                 )
             )
         return hotels
+
+    def route_legs(
+        self,
+        points: list[Place],
+        mode: Literal["walking", "bicycle", "car"],
+    ) -> list[RouteLeg]:
+        if not self.settings.openrouteservice_api_key:
+            raise Exception("OpenRouteService API key not set")
+
+        profile = _ors_profile(mode)
+        limited_points = [
+            point
+            for point in points
+            if point.latitude is not None and point.longitude is not None
+        ]
+        legs: list[RouteLeg] = []
+        for origin, destination in zip(limited_points, limited_points[1:], strict=False):
+            response = self.session.post(
+                f"https://api.openrouteservice.org/v2/directions/{profile}/geojson",
+                headers={
+                    "Authorization": self.settings.openrouteservice_api_key,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "coordinates": [
+                        [origin.longitude, origin.latitude],
+                        [destination.longitude, destination.latitude],
+                    ],
+                    "units": "m",
+                    "language": "en",
+                },
+                timeout=self.settings.request_timeout_seconds,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            feature = payload["features"][0]
+            summary = feature["properties"]["summary"]
+            legs.append(
+                RouteLeg(
+                    origin=origin.name,
+                    destination=destination.name,
+                    mode=mode,
+                    distance_m=summary.get("distance"),
+                    duration_s=summary.get("duration"),
+                    summary=(
+                        f"{origin.name} to {destination.name}: "
+                        f"{_format_distance(summary.get('distance'))}, "
+                        f"{_format_duration(summary.get('duration'))} by "
+                        f"{_transport_label(mode)}."
+                    ),
+                    metadata={
+                        "profile": profile,
+                        "origin_latitude": origin.latitude,
+                        "origin_longitude": origin.longitude,
+                        "destination_latitude": destination.latitude,
+                        "destination_longitude": destination.longitude,
+                    },
+                )
+            )
+        return legs
 
     def _places_radius(
         self,
@@ -153,7 +213,6 @@ class TravelApiClient:
         daily = response.json().get("daily", {})
         forecast = []
         for idx, day in enumerate(daily.get("time", [])):
-            # TODO
             forecast.append(
                 {
                     "date": day,
@@ -219,10 +278,65 @@ def facts_from_weather(weather: WeatherOutline) -> list[TravelFact]:
     ]
 
 
+def facts_from_route_legs(route_legs: list[RouteLeg]) -> list[TravelFact]:
+    return [
+        TravelFact(
+            source="openrouteservice",
+            title=f"{leg.origin} to {leg.destination}",
+            summary=leg.summary,
+            category="route_leg",
+            metadata={
+                "mode": leg.mode,
+                "distance_m": leg.distance_m,
+                "duration_s": leg.duration_s,
+                **leg.metadata,
+            },
+        )
+        for leg in route_legs
+    ]
+
+
 def _safe_list_get(items: list[Any] | None, idx: int) -> Any:
     if not items or idx >= len(items):
         return None
     return items[idx]
+
+
+def _ors_profile(mode: Literal["walking", "bicycle", "car"]) -> str:
+    return {
+        "walking": "foot-walking",
+        "bicycle": "cycling-regular",
+        "car": "driving-car",
+    }[mode]
+
+
+def _transport_label(mode: Literal["walking", "bicycle", "car"]) -> str:
+    return {
+        "walking": "walking",
+        "bicycle": "bicycle",
+        "car": "car",
+    }[mode]
+
+
+def _format_distance(distance_m: float | None) -> str:
+    if distance_m is None:
+        return "unknown distance"
+    if distance_m >= 1000:
+        return f"{distance_m / 1000:.1f} km"
+    return f"{distance_m:.0f} m"
+
+
+def _format_duration(duration_s: float | None) -> str:
+    if duration_s is None:
+        return "unknown duration"
+    minutes = round(duration_s / 60)
+    if minutes < 60:
+        return f"{minutes} min"
+    hours = minutes // 60
+    remaining_minutes = minutes % 60
+    if remaining_minutes:
+        return f"{hours} h {remaining_minutes} min"
+    return f"{hours} h"
 
 
 def _classify_accommodation(kinds: str) -> Literal["budget", "comfort", "luxury"]:

@@ -14,7 +14,7 @@ from src.tools.clarify import extract_trip_draft, ask_user
 from src.tools.research import (
     fetch_geocode,
     fetch_hotels,
-    fetch_places,
+    fetch_places_with_routes,
     fetch_weather_outline,
     index_travel_facts,
 )
@@ -38,7 +38,7 @@ def build_tripforge_agent(checkpointer: MemorySaver | None = None):
     clarify_tools = [extract_trip_draft, ask_user]
     research_tools = [
         fetch_geocode,
-        fetch_places,
+        fetch_places_with_routes,
         fetch_weather_outline,
         fetch_hotels,
         index_travel_facts,
@@ -55,12 +55,17 @@ def build_tripforge_agent(checkpointer: MemorySaver | None = None):
         },
         {
             "name": "research-agent",
-            "description": "Fetches travel facts(geocode, places, weather) from free APIs and indexes them in ChromaDB.",
+            "description": (
+                "Fetches travel facts, city route legs, weather, and accommodation "
+                "options from free APIs and indexes them in ChromaDB."
+            ),
             "system_prompt": _with_today(RESEARCH_PROMPT),
             "tools": research_tools,
             "interrupt_on": {
                 "fetch_geocode": {"allowed_decisions": ["approve", "edit", "reject"]},
-                "fetch_places": {"allowed_decisions": ["approve", "edit", "reject"]},
+                "fetch_places_with_routes": {
+                    "allowed_decisions": ["approve", "edit", "reject"]
+                },
                 "fetch_weather_outline": {
                     "allowed_decisions": ["approve", "edit", "reject"]
                 },
@@ -84,7 +89,7 @@ def build_tripforge_agent(checkpointer: MemorySaver | None = None):
             extract_trip_draft,
             ask_user,
             fetch_geocode,
-            fetch_places,
+            fetch_places_with_routes,
             fetch_weather_outline,
             fetch_hotels,
             index_travel_facts,
@@ -96,7 +101,9 @@ def build_tripforge_agent(checkpointer: MemorySaver | None = None):
         interrupt_on={
             "ask_user": {"allowed_decisions": ["respond"]},
             "fetch_geocode": {"allowed_decisions": ["approve", "edit", "reject"]},
-            "fetch_places": {"allowed_decisions": ["approve", "edit", "reject"]},
+            "fetch_places_with_routes": {
+                "allowed_decisions": ["approve", "edit", "reject"]
+            },
             "fetch_weather_outline": {
                 "allowed_decisions": ["approve", "edit", "reject"]
             },
