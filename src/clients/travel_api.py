@@ -26,7 +26,7 @@ class TravelApiClient:
         )
         response.raise_for_status()
         data = response.json()
-        #print(data)
+        # print(data)
         if not data:
             raise ValueError(f"Destination not found: {destination}")
 
@@ -91,7 +91,9 @@ class TravelApiClient:
             if point.latitude is not None and point.longitude is not None
         ]
         legs: list[RouteLeg] = []
-        for origin, destination in zip(limited_points, limited_points[1:], strict=False):
+        for origin, destination in zip(
+            limited_points, limited_points[1:], strict=False
+        ):
             response = self.session.post(
                 f"https://api.openrouteservice.org/v2/directions/{profile}/geojson",
                 headers={
@@ -181,7 +183,7 @@ class TravelApiClient:
                     },
                 )
             )
-        #print(places)
+        # print(places)
         return places
 
     def weather_outline(
@@ -223,7 +225,7 @@ class TravelApiClient:
                     ),
                 }
             )
-        #print(forecast)
+        # print(forecast)
         return WeatherOutline(destination=coordinates.name, forecast=forecast)
 
 

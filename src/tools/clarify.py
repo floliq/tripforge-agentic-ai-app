@@ -44,12 +44,6 @@ def extract_trip_draft(user_request: str) -> str:
     return draft.model_dump_json(indent=2)
 
 
-@tool
-def ask_user(question: str) -> str:
-    """Ask the human traveler a clarification question and wait for a HITL response."""
-    return f"Waiting for traveler response to: {question}"
-
-
 def _heuristic_extract(user_request: str) -> TripDraft:
     text = user_request.strip()
     destination = _extract_destination(text)
@@ -150,7 +144,9 @@ def _extract_accommodation_style(
         return "luxury"
     if any(value in lowered for value in ("комфорт", "comfort")):
         return "comfort"
-    if any(value in lowered for value in ("бюджет", "дешев", "budget", "cheap", "hostel")):
+    if any(
+        value in lowered for value in ("бюджет", "дешев", "budget", "cheap", "hostel")
+    ):
         return "budget"
     return None
 
@@ -197,7 +193,3 @@ def _extract_city_transport_mode(
     ):
         return "car"
     return None
-
-
-def parse_draft_json(payload: str) -> TripDraft:
-    return TripDraft.model_validate(json.loads(payload))

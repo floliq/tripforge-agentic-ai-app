@@ -5,11 +5,14 @@ from src.models import BudgetLine, SaveArtifactsInput, TripDraft
 from src.rag.store import TravelFactStore
 from src.storage.artifacts import save_trip_artifacts
 
+
 @tool
 def search_travel_facts(session_id: str, query: str, limit: int = 6) -> str:
     """Search indexed ChromaDB travel facts for a trip session."""
     facts = TravelFactStore(session_id=session_id).search(query=query, limit=limit)
-    return json.dumps([fact.model_dump(mode="json") for fact in facts], ensure_ascii=False, indent=2)
+    return json.dumps(
+        [fact.model_dump(mode="json") for fact in facts], ensure_ascii=False, indent=2
+    )
 
 
 @tool(args_schema=SaveArtifactsInput)

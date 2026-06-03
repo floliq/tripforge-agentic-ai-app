@@ -10,7 +10,7 @@ from src.agents.prompts import (
     SUPERVISOR_PROMPT,
 )
 from src.llm import build_chat_model
-from src.tools.clarify import extract_trip_draft, ask_user
+from src.tools.clarify import extract_trip_draft
 from src.tools.research import (
     fetch_geocode,
     fetch_hotels,
@@ -35,7 +35,7 @@ def build_tripforge_agent(checkpointer: MemorySaver | None = None):
     model = build_chat_model()
     checkpointer = checkpointer or MemorySaver()
 
-    clarify_tools = [extract_trip_draft, ask_user]
+    clarify_tools = [extract_trip_draft]
     research_tools = [
         fetch_geocode,
         fetch_places_with_routes,
@@ -51,7 +51,6 @@ def build_tripforge_agent(checkpointer: MemorySaver | None = None):
             "description": "Extracts trip draft fields and asks the traveler for missing details.",
             "system_prompt": _with_today(CLARIFY_PROMPT),
             "tools": clarify_tools,
-            "interrupt_on": {"ask_user": {"allowed_decisions": ["respond"]}},
         },
         {
             "name": "research-agent",
@@ -87,7 +86,6 @@ def build_tripforge_agent(checkpointer: MemorySaver | None = None):
         model=model,
         tools=[
             extract_trip_draft,
-            ask_user,
             fetch_geocode,
             fetch_places_with_routes,
             fetch_weather_outline,
@@ -99,7 +97,6 @@ def build_tripforge_agent(checkpointer: MemorySaver | None = None):
         system_prompt=_with_today(SUPERVISOR_PROMPT),
         subagents=subagents,
         interrupt_on={
-            "ask_user": {"allowed_decisions": ["respond"]},
             "fetch_geocode": {"allowed_decisions": ["approve", "edit", "reject"]},
             "fetch_places_with_routes": {
                 "allowed_decisions": ["approve", "edit", "reject"]

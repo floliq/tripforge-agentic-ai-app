@@ -36,7 +36,9 @@ class TravelFactStore:
             }
             for fact in facts
         ]
-        self.collection.add(ids=ids, documents=documents, embeddings=embeddings, metadatas=metadatas)
+        self.collection.add(
+            ids=ids, documents=documents, embeddings=embeddings, metadatas=metadatas
+        )
         return len(facts)
 
     def search(self, query: str, limit: int = 6) -> list[TravelFact]:

@@ -50,7 +50,9 @@ class TripDraft(BaseModel):
             "needs_accommodation",
             "city_transport_mode",
         ]
-        missing = [field for field in required if getattr(self, field) in (None, [], "")]
+        missing = [
+            field for field in required if getattr(self, field) in (None, [], "")
+        ]
         if self.needs_accommodation and not self.accommodation_style:
             missing.append("accommodation_style")
         return missing
@@ -99,7 +101,9 @@ class BudgetLine(BaseModel):
     category: str
     amount: float
     currency: str = "EUR"
-    note: str | None = Field(default=None, validation_alias=AliasChoices("note", "notes"))
+    note: str | None = Field(
+        default=None, validation_alias=AliasChoices("note", "notes")
+    )
 
 
 class SaveArtifactsInput(BaseModel):

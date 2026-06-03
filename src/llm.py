@@ -18,6 +18,7 @@ def build_embeddings(settings: Settings | None = None) -> OllamaEmbeddings:
         model=settings.ollama_embed_model, base_url=settings.ollama_base_url
     )
 
+
 def build_langfuse_handler(thread_id: str) -> Any | None:
     settings = Settings()
     if not (settings.langfuse_public_key and settings.langfuse_secret_key):

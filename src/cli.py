@@ -52,14 +52,25 @@ def run_cli() -> int:
         while True:
             result = agent.invoke(payload, config=config, version="v2")
             interrupts = _get_interrupts(result)
-            if not interrupts:
+            if interrupts:
+                decisions = _collect_human_decisions(interrupts[0].value)
+                payload = Command(resume={"decisions": decisions})
+                continue
+
+            if _artifacts_complete(session_id):
                 return _print_final(result, session_id)
 
-            decisions = _collect_human_decisions(interrupts[0].value)
-            payload = Command(resume={"decisions": decisions})
+            content = _last_ai_message_content(result)
+            if content:
+                print(content)
+                answer = input("> ").strip()
+                if answer:
+                    payload = {"messages": [{"role": "user", "content": answer}]}
+                    continue
+
+            return _print_final(result, session_id)
     finally:
         flush_langfuse(langfuse_handler)
-
 
 
 def _print_final(result: Any, session_id: str) -> int:
@@ -68,7 +79,7 @@ def _print_final(result: Any, session_id: str) -> int:
         print(content)
 
     artifacts = _artifact_paths(session_id)
-    if all(path.exists() for path in artifacts.values()):
+    if _artifacts_complete(session_id):
         print("\nГотово. Артефакты сохранены:")
         for name, path in artifacts.items():
             print(f"- {name}: {path}")
@@ -90,18 +101,59 @@ def _artifact_paths(session_id: str):
     }
 
 
-def _last_message_content(result: Any) -> str | None:
-    messages = []
-    if isinstance(result, dict):
-        messages = result.get("messages") or []
-    else:
-        messages = getattr(result, "messages", []) or []
+def _artifacts_complete(session_id: str) -> bool:
+    return all(path.exists() for path in _artifact_paths(session_id).values())
 
-    for message in reversed(messages):
-        content = getattr(message, "content", None)
-        if content is None and isinstance(message, dict):
-            content = message.get("content")
-        text = _normalize_message_content(content)
+
+def _result_state(result: Any) -> Any:
+    value = getattr(result, "value", None)
+    if value is not None:
+        return value
+    return result
+
+
+def _get_messages(result: Any) -> list[Any]:
+    state = _result_state(result)
+    if isinstance(state, dict):
+        return list(state.get("messages") or [])
+    return list(getattr(state, "messages", []) or [])
+
+
+def _message_type(message: Any) -> str | None:
+    message_type = getattr(message, "type", None)
+    if message_type is None and isinstance(message, dict):
+        message_type = message.get("type")
+    if message_type is None:
+        role = getattr(message, "role", None)
+        if role is None and isinstance(message, dict):
+            role = message.get("role")
+        if role == "assistant":
+            return "ai"
+        if role == "user":
+            return "human"
+    return message_type
+
+
+def _message_content(message: Any) -> Any:
+    content = getattr(message, "content", None)
+    if content is None and isinstance(message, dict):
+        content = message.get("content")
+    return content
+
+
+def _last_ai_message_content(result: Any) -> str | None:
+    for message in reversed(_get_messages(result)):
+        if _message_type(message) != "ai":
+            continue
+        text = _normalize_message_content(_message_content(message))
+        if text:
+            return text
+    return None
+
+
+def _last_message_content(result: Any) -> str | None:
+    for message in reversed(_get_messages(result)):
+        text = _normalize_message_content(_message_content(message))
         if text:
             return text
     return None
@@ -125,6 +177,9 @@ def _get_interrupts(result: Any) -> list[Any]:
     interrupts = getattr(result, "interrupts", None)
     if interrupts:
         return list(interrupts)
+    state = _result_state(result)
+    if isinstance(state, dict) and state.get("__interrupt__"):
+        return list(state["__interrupt__"])
     if isinstance(result, dict) and result.get("__interrupt__"):
         return list(result["__interrupt__"])
     return []

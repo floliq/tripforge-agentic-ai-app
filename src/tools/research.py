@@ -122,6 +122,7 @@ def accommodation_facts_from_json(hotels_json: str) -> list[TravelFact]:
     hotels = [Place.model_validate(item) for item in payload]
     return facts_from_hotels(hotels)
 
+
 def _coordinates(
     destination_name: str,
     latitude: float,

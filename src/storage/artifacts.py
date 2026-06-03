@@ -18,6 +18,7 @@ def session_dir(session_id: str, settings: Settings | None = None) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
 
+
 def save_trip_artifacts(
     session_id: str,
     draft: TripDraft,
@@ -39,7 +40,9 @@ def save_trip_artifacts(
         },
     )
     itinerary_path.write_text(itinerary_markdown, encoding="utf-8")
-    _write_json(budget_path, {"items": budget, "total": sum(item.amount for item in budget)})
+    _write_json(
+        budget_path, {"items": budget, "total": sum(item.amount for item in budget)}
+    )
 
     return {
         "meta": str(meta_path),
@@ -52,6 +55,11 @@ def _write_json(path: Path, payload: dict) -> None:
     def default(value: object) -> object:
         if isinstance(value, BaseModel):
             return value.model_dump(mode="json")
-        raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+        raise TypeError(
+            f"Object of type {type(value).__name__} is not JSON serializable"
+        )
 
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=default), encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, default=default),
+        encoding="utf-8",
+    )
